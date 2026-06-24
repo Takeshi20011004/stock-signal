@@ -104,6 +104,55 @@ def _rsi_from(avg_gain, avg_loss):
     return 100.0 - (100.0 / (1.0 + rs))
 
 
+def ema(values, period):
+    """指数平滑移動平均の系列。最初の period 本の SMA を起点にする。算出できない位置は None。"""
+    out = [None] * len(values)
+    if len(values) < period:
+        return out
+    k = 2.0 / (period + 1)
+    prev = sum(values[:period]) / period
+    out[period - 1] = prev
+    for i in range(period, len(values)):
+        prev = values[i] * k + prev * (1 - k)
+        out[i] = prev
+    return out
+
+
+def macd(values, fast, slow, signal):
+    """MACD線とシグナル線の (macd_line, signal_line) を返す。算出できない位置は None。"""
+    ema_fast = ema(values, fast)
+    ema_slow = ema(values, slow)
+    macd_line = [None] * len(values)
+    for i in range(len(values)):
+        if ema_fast[i] is not None and ema_slow[i] is not None:
+            macd_line[i] = ema_fast[i] - ema_slow[i]
+    # シグナル線は MACD 線（None でない区間）に対する EMA
+    start = next((i for i, v in enumerate(macd_line) if v is not None), None)
+    signal_line = [None] * len(values)
+    if start is not None:
+        sig = ema(macd_line[start:], signal)
+        for offset, v in enumerate(sig):
+            signal_line[start + offset] = v
+    return macd_line, signal_line
+
+
+def bollinger(values, period, k):
+    """ボリンジャーバンドの (upper, middle, lower) 系列を返す。算出できない位置は None。"""
+    middle = sma(values, period)
+    upper = [None] * len(values)
+    lower = [None] * len(values)
+    if len(values) < period:
+        return upper, middle, lower
+    for i in range(period - 1, len(values)):
+        window = values[i - period + 1:i + 1]
+        mean = middle[i]
+        var = sum((x - mean) ** 2 for x in window) / period
+        sd = var ** 0.5
+        upper[i] = mean + k * sd
+        lower[i] = mean - k * sd
+    return upper, middle, lower
+
+
 # ----------------------------------------------------------------------
 # シグナル判定
 # ----------------------------------------------------------------------
@@ -138,6 +187,29 @@ def detect_signals(name, code, series, params, alerts):
             signals.append(_mk(code, name, last_date, last_close,
                                "rsi_overbought", "🔴 RSI 買われすぎ（売り候補）",
                                "RSI=%.1f が %d を上抜け" % (r[-1], params["rsi_high"])))
+
+    macd_line, signal_line = macd(closes, params["macd_fast"],
+                                  params["macd_slow"], params["macd_signal"])
+    if macd_line[-1] is not None and macd_line[-2] is not None \
+            and signal_line[-1] is not None and signal_line[-2] is not None:
+        if macd_line[-2] <= signal_line[-2] and macd_line[-1] > signal_line[-1]:
+            signals.append(_mk(code, name, last_date, last_close,
+                               "macd_golden", "📊 MACDゴールデンクロス（買いシグナル）",
+                               "MACD線がシグナル線を上抜け"))
+        elif macd_line[-2] >= signal_line[-2] and macd_line[-1] < signal_line[-1]:
+            signals.append(_mk(code, name, last_date, last_close,
+                               "macd_dead", "📊 MACDデッドクロス（売りシグナル）",
+                               "MACD線がシグナル線を下抜け"))
+
+    upper, _mid, lower = bollinger(closes, params["bb_period"], params["bb_k"])
+    if upper[-1] is not None and last_close > upper[-1]:
+        signals.append(_mk(code, name, last_date, last_close,
+                           "bb_upper", "🟠 ボリンジャーバンド +%dσ突破（買われすぎ）" % params["bb_k"],
+                           "終値 %.0f円 が上限 %.0f円 を上抜け" % (last_close, upper[-1])))
+    elif lower[-1] is not None and last_close < lower[-1]:
+        signals.append(_mk(code, name, last_date, last_close,
+                           "bb_lower", "🔵 ボリンジャーバンド -%dσ突破（売られすぎ）" % params["bb_k"],
+                           "終値 %.0f円 が下限 %.0f円 を下抜け" % (last_close, lower[-1])))
 
     for a in alerts:
         if "below" in a and last_close <= a["below"]:
