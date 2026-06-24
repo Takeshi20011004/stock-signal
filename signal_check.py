@@ -30,6 +30,22 @@ YAHOO_URL = ("https://query1.finance.yahoo.com/v8/finance/chart/"
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
 JST = datetime.timezone(datetime.timedelta(hours=9))
 
+# 通貨記号（Yahoo の meta["currency"] で判別。未知の通貨はコードをそのまま付ける）
+CURRENCY_SYMBOL = {"JPY": "円", "USD": "$", "EUR": "€", "GBP": "£",
+                   "HKD": "HK$", "CNY": "元", "AUD": "A$", "KRW": "₩"}
+
+
+def fmt_price(value, currency):
+    """価格を通貨に応じて整形する。円は『2691円』、ドルは『$294.30』など。"""
+    if value is None:
+        return "—"
+    if currency == "JPY":
+        return "%.0f円" % value
+    sym = CURRENCY_SYMBOL.get(currency)
+    if sym:
+        return "%s%.2f" % (sym, value)
+    return "%.2f %s" % (value, currency or "")
+
 
 # ----------------------------------------------------------------------
 # データ取得
@@ -165,7 +181,7 @@ def bollinger(values, period, k):
 # ----------------------------------------------------------------------
 # シグナル判定
 # ----------------------------------------------------------------------
-def detect_signals(name, code, series, params, alerts):
+def detect_signals(name, code, series, params, alerts, currency="JPY"):
     """このセッションで成立したシグナルの dict リストを返す。"""
     dates = [d for d, _ in series]
     closes = [c for _, c in series]
@@ -214,21 +230,29 @@ def detect_signals(name, code, series, params, alerts):
     if upper[-1] is not None and last_close > upper[-1]:
         signals.append(_mk(code, name, last_date, last_close,
                            "bb_upper", "🟠 ボリンジャーバンド +%dσ突破（買われすぎ）" % params["bb_k"],
-                           "終値 %.0f円 が上限 %.0f円 を上抜け" % (last_close, upper[-1])))
+                           "終値 %s が上限 %s を上抜け"
+                           % (fmt_price(last_close, currency), fmt_price(upper[-1], currency))))
     elif lower[-1] is not None and last_close < lower[-1]:
         signals.append(_mk(code, name, last_date, last_close,
                            "bb_lower", "🔵 ボリンジャーバンド -%dσ突破（売られすぎ）" % params["bb_k"],
-                           "終値 %.0f円 が下限 %.0f円 を下抜け" % (last_close, lower[-1])))
+                           "終値 %s が下限 %s を下抜け"
+                           % (fmt_price(last_close, currency), fmt_price(lower[-1], currency))))
 
     for a in alerts:
         if "below" in a and last_close <= a["below"]:
             signals.append(_mk(code, name, last_date, last_close,
                                "price_below_%s" % a["below"], "🔻 指定価格に到達（以下）",
-                               "終値 %.0f円 ≤ %s円" % (last_close, a["below"])))
+                               "終値 %s ≤ %s"
+                               % (fmt_price(last_close, currency), fmt_price(a["below"], currency))))
         if "above" in a and last_close >= a["above"]:
             signals.append(_mk(code, name, last_date, last_close,
                                "price_above_%s" % a["above"], "🔺 指定価格に到達（以上）",
-                               "終値 %.0f円 ≥ %s円" % (last_close, a["above"])))
+                               "終値 %s ≥ %s"
+                               % (fmt_price(last_close, currency), fmt_price(a["above"], currency))))
+
+    # 通知本文の整形用に通貨を全シグナルへ付与
+    for s in signals:
+        s["currency"] = currency
     return signals
 
 
@@ -236,7 +260,7 @@ def _mk(code, name, date, close, kind, title, detail):
     return {
         "key": "%s:%s:%s" % (code, kind, date),
         "code": code, "name": name, "date": date, "close": close,
-        "kind": kind, "title": title, "detail": detail,
+        "kind": kind, "title": title, "detail": detail, "currency": "JPY",
     }
 
 
@@ -245,8 +269,9 @@ def _mk(code, name, date, close, kind, title, detail):
 # ----------------------------------------------------------------------
 def notify(sig, cfg):
     title = "株シグナル: %s (%s)" % (sig["name"], sig["code"])
-    body = "%s\n%s ／ 終値 %.0f円 [%s]" % (
-        sig["title"], sig["detail"], sig["close"], sig["date"])
+    body = "%s\n%s ／ 終値 %s [%s]" % (
+        sig["title"], sig["detail"], fmt_price(sig["close"], sig.get("currency", "JPY")),
+        sig["date"])
     if cfg.get("macos"):
         notify_macos(title, sig["title"] + " / " + sig["detail"], cfg.get("sound"))
     if cfg.get("log"):
@@ -331,7 +356,7 @@ def main():
     for item in cfg["watchlist"]:
         code, name = item["code"], item.get("name", item["code"])
         try:
-            series, _meta = fetch_series(code)
+            series, meta = fetch_series(code)
         except (urllib.error.URLError, KeyError, IndexError, ValueError) as e:
             print("取得失敗 %s: %s" % (code, e), file=sys.stderr)
             continue
@@ -339,8 +364,9 @@ def main():
             print("データ不足 %s（%d本）" % (code, len(series)), file=sys.stderr)
             continue
 
+        currency = meta.get("currency", "JPY")
         for sig in detect_signals(name, code, series, params,
-                                  alerts_by_code.get(code, [])):
+                                  alerts_by_code.get(code, []), currency):
             if not test_mode and sig["key"] in notified:
                 continue
             notify(sig, notify_cfg)

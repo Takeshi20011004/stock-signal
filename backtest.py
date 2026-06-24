@@ -29,7 +29,7 @@ import datetime
 import urllib.error
 
 # signal_check の関数を再利用（指標ロジックを二重実装しないため）
-from signal_check import fetch_series, sma, rsi
+from signal_check import fetch_series, sma, rsi, fmt_price
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
@@ -124,7 +124,7 @@ def backtest(series, params):
 # ----------------------------------------------------------------------
 # 表示
 # ----------------------------------------------------------------------
-def print_result(name, code, res, span):
+def print_result(name, code, res, span, currency="JPY"):
     win_rate = (res["n_wins"] / res["n_trades"] * 100.0) if res["n_trades"] else 0.0
     print("-" * 60)
     print("【%s (%s)】 期間: %s" % (name, code, span))
@@ -133,11 +133,12 @@ def print_result(name, code, res, span):
     print("  総合損益率（複利合成）: %+.2f%%" % res["total_ret"])
     if res["open_pos"]:
         op = res["open_pos"]
-        print("  ※ 期末に建玉あり（未決済）: %s に %.0f円で買い → 直近 %.0f円 (%+.2f%%)"
-              % (op["entry_date"], op["entry_px"], op["last_px"], op["unreal_ret"]))
+        print("  ※ 期末に建玉あり（未決済）: %s に %sで買い → 直近 %s (%+.2f%%)"
+              % (op["entry_date"], fmt_price(op["entry_px"], currency),
+                 fmt_price(op["last_px"], currency), op["unreal_ret"]))
     for t in res["trades"]:
-        print("    %s 買 %.0f → %s 売 %.0f  (%+.2f%%)"
-              % (t[0], t[1], t[2], t[3], t[4]))
+        print("    %s 買 %s → %s 売 %s  (%+.2f%%)"
+              % (t[0], fmt_price(t[1], currency), t[2], fmt_price(t[3], currency), t[4]))
 
 
 def print_total(per_code):
@@ -203,7 +204,7 @@ def main():
     for item in targets:
         code, name = item["code"], item.get("name", item["code"])
         try:
-            series, _meta = fetch_series(code)
+            series, meta = fetch_series(code)
         except (urllib.error.URLError, KeyError, IndexError, ValueError) as e:
             print("取得失敗 %s: %s" % (code, e), file=sys.stderr)
             continue
@@ -213,7 +214,7 @@ def main():
 
         span = "%s 〜 %s" % (series[0][0], series[-1][0])
         res = backtest(series, params)
-        print_result(name, code, res, span)
+        print_result(name, code, res, span, meta.get("currency", "JPY"))
         per_code.append(res)
 
     if per_code:

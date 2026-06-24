@@ -20,13 +20,14 @@ import datetime
 import urllib.error
 
 # 既存ツールから関数を再利用（編集しない signal_check.py を import）
-from signal_check import fetch_series, sma, rsi, load_json, CONFIG_PATH, JST
+from signal_check import (fetch_series, sma, rsi, load_json, CONFIG_PATH, JST,
+                          fmt_price)
 
 
 # ----------------------------------------------------------------------
 # 1 銘柄分の状態を計算
 # ----------------------------------------------------------------------
-def build_row(name, code, series, params):
+def build_row(name, code, series, params, currency="JPY"):
     """1 銘柄の現況を dict で返す。算出できない値は None。"""
     closes = [c for _, c in series]
     last_date = series[-1][0]
@@ -62,6 +63,7 @@ def build_row(name, code, series, params):
 
     return {
         "name": name, "code": code, "date": last_date, "close": last_close,
+        "currency": currency,
         "change_pct": change_pct, "rsi": rsi_now,
         "sma_short": sma_short_now, "sma_long": sma_long_now,
         "dev_short": dev_short, "dev_long": dev_long, "trend": trend,
@@ -99,7 +101,7 @@ def print_table(rows, params, now):
     for row in rows:
         print("%-10s %-6s %8s %7s %6s %7s %7s  %s" % (
             _clip(row["name"], 10), row["code"],
-            _f(row["close"], "%.1f"),
+            fmt_price(row["close"], row["currency"]),
             _f(row["change_pct"], "%+.2f%%"),
             _f(row["rsi"], "%.1f"),
             _f(row["dev_short"], "%+.1f%%"),
@@ -135,7 +137,7 @@ def build_markdown(rows, params, now):
     for row in rows:
         lines.append("| %s | %s | %s | %s | %s | %s | %s | %s | %s |" % (
             row["name"], row["code"], row["date"],
-            _f(row["close"], "%.1f"),
+            fmt_price(row["close"], row["currency"]),
             _f(row["change_pct"], "%+.2f%%"),
             _f(row["rsi"], "%.1f"),
             _f(row["dev_short"], "%+.1f%%"),
@@ -165,14 +167,15 @@ def main():
     for item in cfg["watchlist"]:
         code, name = item["code"], item.get("name", item["code"])
         try:
-            series, _meta = fetch_series(code)
+            series, meta = fetch_series(code)
         except (urllib.error.URLError, KeyError, IndexError, ValueError) as e:
             print("取得失敗 %s: %s" % (code, e), file=sys.stderr)
             continue
         if len(series) < 2:
             print("データ不足 %s（%d本）" % (code, len(series)), file=sys.stderr)
             continue
-        rows.append(build_row(name, code, series, params))
+        rows.append(build_row(name, code, series, params,
+                              meta.get("currency", "JPY")))
 
     if not rows:
         print("出力できる銘柄がありません（データ取得に失敗した可能性）", file=sys.stderr)
