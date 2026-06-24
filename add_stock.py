@@ -107,8 +107,16 @@ def cmd_list(cfg):
         print(line)
 
 
-def cmd_add(cfg, code, name, below, above):
+def normalize_code(code):
+    """米国株ティッカー（英字）は大文字に統一。日本株（数字）はそのまま。"""
     code = code.strip()
+    if "." not in code and not code.isdigit():
+        return code.upper()
+    return code
+
+
+def cmd_add(cfg, code, name, below, above):
+    code = normalize_code(code)
     wl = cfg.setdefault("watchlist", [])
     if any(item["code"] == code for item in wl):
         print("%s はすでに監視中です。" % code)
@@ -135,7 +143,7 @@ def cmd_add(cfg, code, name, below, above):
 
 
 def cmd_remove(cfg, code):
-    code = code.strip()
+    code = normalize_code(code)
     wl = cfg.get("watchlist", [])
     before = len(wl)
     cfg["watchlist"] = [item for item in wl if item["code"] != code]

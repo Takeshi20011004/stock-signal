@@ -36,7 +36,16 @@ JST = datetime.timezone(datetime.timedelta(hours=9))
 # ----------------------------------------------------------------------
 def fetch_series(code):
     """日足の (date文字列, 終値) リストを古い順で返す。欠損は除外。"""
-    symbol = code if "." in code else code + ".T"
+    # 銘柄コードの自動判別:
+    #   "." を含む    → そのまま（例: 7203.T, BRK-B など指定済み）
+    #   数字のみ       → 日本株とみなして東証サフィックス .T を付与
+    #   それ以外       → 米国株などのティッカーとしてそのまま（大文字化）
+    if "." in code:
+        symbol = code
+    elif code.isdigit():
+        symbol = code + ".T"
+    else:
+        symbol = code.upper()
     url = YAHOO_URL.format(symbol=symbol)
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=20) as resp:
