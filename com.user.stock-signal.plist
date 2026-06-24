@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.user.stock-signal</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/owner/stock-signal/run.sh</string>
+  </array>
+
+  <!-- 平日(月-金) 15:40 に実行。前場/大引け後にデータが確定してから動かす想定。
+       実行時刻にスリープしていても、次にMacが起きた時に1回実行される。 -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>15</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>15</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>15</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>15</integer><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>15</integer><key>Minute</key><integer>40</integer></dict>
+  </array>
+
+  <key>StandardOutPath</key>
+  <string>/Users/owner/stock-signal/launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/owner/stock-signal/launchd.log</string>
+</dict>
+</plist>
