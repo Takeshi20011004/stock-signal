@@ -1,18 +1,58 @@
 {
   "_comment": "ここを編集するだけでOK。code は楽天証券などの4桁銘柄コード（.T は不要、自動で付きます）。",
-
   "watchlist": [
-    { "code": "7203", "name": "トヨタ" },
-    { "code": "9984", "name": "ソフトバンクG" },
-    { "code": "6758", "name": "ソニーG" }
+    {
+      "code": "7203",
+      "name": "トヨタ"
+    },
+    {
+      "code": "9984",
+      "name": "ソフトバンクG"
+    },
+    {
+      "code": "6758",
+      "name": "ソニーG"
+    },
+    {
+      "code": "7013.T",
+      "name": "IHI CORPORATION"
+    },
+    {
+      "code": "DRAM",
+      "name": "Roundhill Memory ETF"
+    },
+    {
+      "code": "285A.T",
+      "name": "KIOXIA HOLDINGS CORPORATION"
+    },
+    {
+      "code": "SOXL",
+      "name": "Direxion Daily Semiconductor Bu"
+    },
+    {
+      "code": "MU",
+      "name": "Micron Technology, Inc."
+    },
+    {
+      "code": "4392.T",
+      "name": "FUTURE INNOVATION GROUP INC"
+    },
+    {
+      "code": "7011",
+      "name": "三菱重工業"
+    }
   ],
-
   "_price_alerts_comment": "指定価格アラート。below=この値以下で通知 / above=この値以上で通知。設定したい銘柄だけ書けばOK。両方書いてもよい。",
   "price_alerts": [
-    { "code": "7203", "below": 2500 },
-    { "code": "9984", "above": 12000 }
+    {
+      "code": "7203",
+      "below": 2500
+    },
+    {
+      "code": "9984",
+      "above": 12000
+    }
   ],
-
   "params": {
     "sma_short": 25,
     "sma_long": 75,
@@ -25,7 +65,6 @@
     "bb_period": 20,
     "bb_k": 2
   },
-
   "notify": {
     "macos": true,
     "sound": "Glass",
