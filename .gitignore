@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 signals.log
 report_*.md
+morning_mail.log
+launchd.log
